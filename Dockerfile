@@ -1,9 +1,3 @@
-FROM python:3.10 as requirements-stage
-
-WORKDIR /tmp
-
-COPY ./requirements.txt /tmp/
-
 FROM python:3.10
 
 WORKDIR /code
