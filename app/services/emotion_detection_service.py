@@ -11,17 +11,24 @@ class EmotionDetectionService:
     @staticmethod
     def _extract_features(data, sample_rate):
         result = np.array([])
-        zcr = np.mean(librosa.feature.zero_crossing_rate(y=data).T, axis=0)
-        result = np.hstack((result, zcr))
+
+        zcr = librosa.feature.zero_crossing_rate(y=data).T
+        result = np.hstack((result, np.mean(zcr, axis=0)))
+        result = np.hstack((result, np.min(zcr, axis=0)))
+        result = np.hstack((result, np.max(zcr, axis=0)))
 
         # Chroma_stft
         stft = np.abs(librosa.stft(data))
-        chroma_stft = np.mean(librosa.feature.chroma_stft(S=stft, sr=sample_rate).T, axis=0)
-        result = np.hstack((result, chroma_stft))
+        chroma_stft = librosa.feature.chroma_stft(S=stft, sr=sample_rate).T
+        result = np.hstack((result, np.mean(chroma_stft, axis=0)))
+        result = np.hstack((result, np.min(chroma_stft, axis=0)))
+        result = np.hstack((result, np.max(chroma_stft, axis=0)))
 
         # MFCC
-        mfcc = np.mean(librosa.feature.mfcc(y=data, sr=sample_rate).T, axis=0)
-        result = np.hstack((result, mfcc))
+        mfcc = librosa.feature.mfcc(y=data, sr=sample_rate).T
+        result = np.hstack((result, np.mean(mfcc, axis=0)))
+        result = np.hstack((result, np.min(mfcc, axis=0)))
+        result = np.hstack((result, np.max(mfcc, axis=0)))
 
         # Root Mean Square Value
         rms = np.mean(librosa.feature.rms(y=data).T, axis=0)
@@ -76,7 +83,7 @@ class EmotionDetectionService:
         class_max = split_proba_df.groupby(["class"]).max()
 
         return {
-            "predicted_classes": predicted_classes,
+            "predicted_classes": list(set(predicted_classes)),
             "probabilities_max": [{"class": p[0], "probability": p[1]} for p in class_max["probability"].items()]
         }
 
