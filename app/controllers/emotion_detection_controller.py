@@ -16,4 +16,6 @@ def emotion_detection_audio(file: UploadFile):
 
     with NamedTemporaryFile(delete=True, suffix=suffix) as tmp:
         shutil.copyfileobj(file.file, tmp)
-        emotion_detection_service.detect_audio(tmp.name)
+        detection_result = emotion_detection_service.detect_audio(tmp.name)
+
+    return detection_result

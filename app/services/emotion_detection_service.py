@@ -5,6 +5,7 @@ import tensorflow as tf
 
 
 class EmotionDetectionService:
+    EMOTION_CATEGORIES = {0: "anger", 1: "anxiety", 2: "boredom", 3: "disgust", 4: "happiness", 5: "neutral", 6: "sadness"}
     @staticmethod
     def _extract_features(data, sample_rate):
         result = np.array([])
@@ -39,6 +40,21 @@ class EmotionDetectionService:
 
         audio_features = pd.DataFrame(feature_list)
 
-        model = tf.keras.models.load_model("./../../notebooks/emotion-detection.h5")
-        model.predict(audio_features)
+        model = tf.keras.models.load_model("emotion-detection.h5")
+        predictions = model.predict(audio_features)
 
+        prediction_proba = tf.nn.sigmoid(predictions)
+        predicted_class = self.EMOTION_CATEGORIES[np.argmax(predictions)]
+
+
+        category_probabilities = list()
+        for i, p in enumerate(prediction_proba.numpy()[0]):
+            category_probabilities.append({
+                "class": self.EMOTION_CATEGORIES[i],
+                "probability": p * 100
+            })
+
+        return {
+            "predicted_class": predicted_class,
+            "probabilities": category_probabilities
+        }
