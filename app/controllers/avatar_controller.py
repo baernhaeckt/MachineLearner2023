@@ -1,5 +1,5 @@
-from fastapi import Request, APIRouter
-from fastapi.responses import StreamingResponse
+from fastapi import HTTPException, Request, APIRouter
+from fastapi.responses import FileResponse, StreamingResponse
 
 import config
 import python_avatars as pa
@@ -270,10 +270,10 @@ def get_avatar_from_cache(cache_filename):
     if not os.path.exists(f"cache/{cache_filename}"):
         return {"message": "Avatar not found"}, 404
 
-    with open(f"cache/{cache_filename}", "rb") as f:
-        avatar_photo = f.read()
-        response = StreamingResponse(io.BytesIO(avatar_photo), media_type="image/png")
-        return response
+    if os.path.exists(f"cache/{cache_filename}"):
+        return FileResponse(f"cache/{cache_filename}")
+    else:
+        raise HTTPException(status_code=404, detail="File not found")
 
 @router.get("/", tags=["api avatar"], status_code=200)
 def get_avatar(request: Request):
