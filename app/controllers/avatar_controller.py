@@ -16,6 +16,12 @@ import math
 
 router = APIRouter()
 
+cache_folder = os.environ["AVATAR_IMAGECACHE_FOLDER"] if "AVATAR_IMAGECACHE_FOLDER" in os.environ and not os.environ["AVATAR_IMAGECACHE_FOLDER"] is None else "cache"
+if not cache_folder.endswith("/"):
+    cache_folder += "/"
+
+if not os.path.exists(cache_folder):
+    os.makedirs(cache_folder)
 
 def generate_avatar():
     facial_hair = random.choice([pa.FacialHairType.NONE, pa.FacialHairType.NONE, pa.FacialHairType.BEARD_LIGHT, pa.FacialHairType.BEARD_MAGESTIC]) # 2/3 chance of no facial hair
@@ -133,10 +139,7 @@ def create_image_mask(input_image_byte_data):
     # Open the original image
     image = Image.open(io.BytesIO(input_image_byte_data)).convert("RGB")
 
-    if not os.path.exists("cache"):
-        os.makedirs("cache")
-
-    image.save('cache/prompt_image.jpg', format="JPEG")
+    image.save(f'{cache_folder}prompt_image.jpg', format="JPEG")
 
     # Step 1: Invert the colors
     inverted_image = ImageOps.invert(image)
@@ -166,7 +169,7 @@ def create_image_mask(input_image_byte_data):
     # Convert to JPG and save in-memory
     jpg_byte_stream = io.BytesIO()
     inverted_image.save(jpg_byte_stream, format="JPEG")
-    inverted_image.save('cache/mask.jpg', format="JPEG")
+    inverted_image.save(f'{cache_folder}/mask.jpg', format="JPEG")
     
     # Get the JPG byte data
     return jpg_byte_stream.getvalue()
@@ -229,12 +232,8 @@ def calculate_emotion_cache_filename(cache_filename, emotion):
     return f"{cache_filename}".replace(".png", f"_{emotion}.png")
 
 def save_to_cache(cache_filename, avatar_photo, emotion):
-    # Save the avatar to the cache
-    if not os.path.exists("cache"):
-        os.makedirs("cache")
-
     target_filename = calculate_emotion_cache_filename(cache_filename, emotion)
-    with open(f"cache/{target_filename}", "wb") as f:
+    with open(f"{cache_folder}{target_filename}", "wb") as f:
         f.write(avatar_photo)
 
     return target_filename
@@ -267,11 +266,11 @@ def extract_features(avatar: pa.Avatar, facial_expression):
 
 @router.get("/{cache_filename}", tags=["api avatar"], status_code=200)
 def get_avatar_from_cache(cache_filename):
-    if not os.path.exists(f"cache/{cache_filename}"):
+    if not os.path.exists(f"{cache_folder}{cache_filename}"):
         return {"message": "Avatar not found"}, 404
 
-    if os.path.exists(f"cache/{cache_filename}"):
-        return FileResponse(f"cache/{cache_filename}")
+    if os.path.exists(f"{cache_folder}{cache_filename}"):
+        return FileResponse(f"{cache_folder}{cache_filename}")
     else:
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -285,7 +284,7 @@ def get_avatar(request: Request):
     if not base_url.endswith("/"):
         base_url += "/"
 
-    if os.path.exists(f"cache/{avatar_base_filename}"):
+    if os.path.exists(f"{cache_folder}{avatar_base_filename}"):
         return {
             "default": base_url + calculate_emotion_cache_filename(avatar_base_filename, "default"),
             # "sad": base_url + calculate_emotion_cache_filename(avatar_base_filename, "sad"),
