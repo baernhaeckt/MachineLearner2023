@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import config
-from controllers import health_controller, emotion_detection_controller, avatar_controller
+from controllers import health_controller, emotion_detection_controller, avatar_controller, webm_wav_controller
 from helpers.logger import logger
 
 
@@ -23,6 +23,7 @@ def app_factory() -> FastAPI:
     app.include_router(health_controller.router, prefix="/api/v1/health")
     app.include_router(emotion_detection_controller.router, prefix="/api/v1/emotion-detection")
     app.include_router(avatar_controller.router, prefix="/api/v1/avatar")
+    app.include_router(webm_wav_controller.router, prefix="/api/v1/webm-wav")
 
     # Logging
     logger.info(f"Starting app with profile: {config.settings.ENV}")
