@@ -1,5 +1,6 @@
-from fastapi import HTTPException, Request, APIRouter
+from fastapi import Body, HTTPException, Request, APIRouter
 from fastapi.responses import FileResponse, StreamingResponse
+from models.configure_avatar import ConfigureAvatar
 
 import config
 import python_avatars as pa
@@ -23,12 +24,32 @@ if not cache_folder.endswith("/"):
 if not os.path.exists(cache_folder):
     os.makedirs(cache_folder)
 
-def generate_avatar():
-    facial_hair = random.choice([pa.FacialHairType.NONE, pa.FacialHairType.NONE, pa.FacialHairType.BEARD_LIGHT, pa.FacialHairType.BEARD_MAGESTIC]) # 2/3 chance of no facial hair
-    hair_type = pa.HairType.pick_random()
-    skin_color = random.choice([pa.SkinColor.LIGHT, pa.SkinColor.DARK_BROWN])
-    hair_color = random.choice([pa.HairColor.BLONDE, pa.HairColor.BLACK])
-    clothing = random.choice([pa.ClothingType.HOODIE, pa.ClothingType.SHIRT_V_NECK, pa.ClothingType.COLLAR_SWEATER, pa.ClothingType.SHIRT_CREW_NECK])
+def get_enum_name_by_value(enum_class, value):
+    for name, member_value in vars(enum_class).items():
+        if member_value == value:
+            return name
+    return None
+
+def generate_avatar(input_hairtype=None, input_haircolor=None, input_skincolor=None, input_facialhairtype=None, input_clothing=None):
+
+    valid_hairtype = [
+        pa.HairType.BIG_HAIR,
+        pa.HairType.BOB,
+        pa.HairType.CURLY,
+        pa.HairType.CURVY,
+        pa.HairType.FRIZZLE,
+        pa.HairType.FRO,
+        pa.HairType.BRAIDS,
+        pa.HairType.BUZZCUT,
+        pa.HairType.DREADLOCKS,
+        pa.HairType.EINSTEIN_HAIR,
+    ]
+
+    hair_type = pa.HairType(input_hairtype) if not input_hairtype is None else random.choice(valid_hairtype)
+    hair_color = pa.HairColor(input_haircolor) if not input_haircolor is None else random.choice([pa.HairColor.BLONDE, pa.HairColor.BLACK])
+    skin_color = pa.SkinColor(input_skincolor) if not input_skincolor is None else random.choice([pa.SkinColor.LIGHT, pa.SkinColor.DARK_BROWN])
+    facial_hair = pa.FacialHairType(input_facialhairtype) if not input_facialhairtype is None else random.choice([pa.FacialHairType.NONE, pa.FacialHairType.NONE, pa.FacialHairType.BEARD_LIGHT, pa.FacialHairType.BEARD_MAGESTIC]) # 2/3 chance of no facial hair
+    clothing = pa.ClothingType(input_clothing) if not input_clothing is None else random.choice([pa.ClothingType.HOODIE, pa.ClothingType.SHIRT_V_NECK, pa.ClothingType.COLLAR_SWEATER, pa.ClothingType.SHIRT_CREW_NECK])
 
     avatar = pa.Avatar(
         style=pa.AvatarStyle.TRANSPARENT,
@@ -176,7 +197,6 @@ def create_image_mask(input_image_byte_data):
 
 def generate_avatar_photos(jpg_byte_data_array):
 
-    print(os.environ.get("REPLICATE_API_TOKEN"))
     if os.environ.get("REPLICATE_API_TOKEN") is None or os.environ.get("REPLICATE_API_TOKEN") == "":
         raise Exception("REPLICATE_API_TOKEN environment variable not set")
     
@@ -240,10 +260,8 @@ def save_to_cache(cache_filename, avatar_photo, emotion):
 
 def extract_features(avatar: pa.Avatar, facial_expression):
     male_features = [
-        pa.HairType.SHORT_FLAT,
         pa.HairType.NONE,
-        pa.HairType.SHORT_DREADS_1,
-        pa.HairType.SHORT_DREADS_2,
+        pa.HairType.BUZZCUT,
         pa.HairType.CAESAR,
         pa.HairType.EINSTEIN_HAIR,
         pa.FacialHairType.BEARD_LIGHT,
@@ -254,15 +272,79 @@ def extract_features(avatar: pa.Avatar, facial_expression):
     if avatar.top in male_features or avatar.facial_hair in male_features:
         is_female = False
 
-    return [
-        "Cool woman" if is_female else "Cool man",
-        f"{avatar.clothing}".replace("_", " ").lower(),
-        f"{avatar.top} hair".replace("_", " ").lower() if avatar.top != pa.HairType.NONE else "with a bald head",
-        f"{avatar.facial_hair} as facial hair".replace("_", " ").lower() if avatar.facial_hair != pa.FacialHairType.NONE else "without facial hair",
-        f"with a {avatar.accessory} as accessory".replace("_", " ").lower() if avatar.accessory != pa.AccessoryType.NONE else "without an accessory",
-        f"with a {facial_expression} facial expression"
+    extracted_features = []
+    
+    extracted_features.append("Cool woman" if is_female else "Cool man")
+    extracted_features.append(f"{get_enum_name_by_value(pa.SkinColor, avatar.skin_color)} skin tone".replace("_", " ").lower())
+    extracted_features.append(f"wearing a {avatar.clothing}".replace("_", " ").lower())
+    
+    if (avatar.top != pa.HairType.NONE):
+        hair_color_name = get_enum_name_by_value(pa.HairColor, avatar.hair_color)
+        extracted_features.append(f"with {hair_color_name} {avatar.top} hair".replace("_", " ").lower())
+    else:
+        extract_features.append("with a bald head".replace("_", " ").lower())
+
+    extracted_features.append(f"{avatar.facial_hair} as facial hair".replace("_", " ").lower() if avatar.facial_hair != pa.FacialHairType.NONE else "without facial hair")
+    extracted_features.append(f"with a {avatar.accessory} as accessory".replace("_", " ").lower() if avatar.accessory != pa.AccessoryType.NONE else "without an accessory")
+    extracted_features.append(f"with a {facial_expression} facial expression")
+
+    return extracted_features
+
+def initialize_avatar(avatar: pa.Avatar, request: Request):
+    avatar_base_filename = calculate_cache_filename(avatar)
+    base_url = str(request.base_url) + "api/v1/avatar/"
+
+    avatar_configuration = {
+        "hairId": avatar.top,
+        "hairColorId": avatar.hair_color,
+        "skinColorId": avatar.skin_color,
+        "facialHairId": avatar.facial_hair,
+        "clothingId": avatar.clothing,
+    }
+
+    if os.path.exists(f"{cache_folder}{calculate_emotion_cache_filename(avatar_base_filename, 'default')}"):
+        return {
+            "default": base_url + calculate_emotion_cache_filename(avatar_base_filename, "default"),
+            "configuration": avatar_configuration
+            # "sad": base_url + calculate_emotion_cache_filename(avatar_base_filename, "sad"),
+            # "happy": base_url + calculate_emotion_cache_filename(avatar_base_filename, "happy"),
+            # "frightened": base_url + calculate_emotion_cache_filename(avatar_base_filename, "frightened"),
+            # "confused": base_url + calculate_emotion_cache_filename(avatar_base_filename, "confused"),
+        }
+
+    default = avatar
+    # sad_avatar = avatar.sad()
+    # happy_avatar = avatar.happy()
+    # frightened_avatar = avatar.frightened()
+    # confused_avatar = avatar.confused()
+
+    svg_data_array = [
+        [extract_features(default, "neutral"), default.render()],
+        # [extract_features(sad_avatar, "sad"), sad_avatar.render()],
+        # [extract_features(happy_avatar, "happy"), happy_avatar.render()],
+        # [extract_features(frightened_avatar, "frightened"), frightened_avatar.render()],
+        # [extract_features(confused_avatar, "confused"), confused_avatar.render()],
     ]
 
+    jpg_byte_data_array = convert_all_svg_to_jpg(svg_data_array)
+    avatar_photo_array = generate_avatar_photos(jpg_byte_data_array)
+    
+    result = {
+        "default": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[0], "default"),
+        "configuration": avatar_configuration
+        # "sad": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[1], "sad"),
+        # "happy": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[2], "happy"),
+        # "frightened": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[3], "frightened"),
+        # "confused": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[4], "confused"),
+    }
+    
+    return result
+
+@router.post("/configure", tags=["api avatar"], status_code=200)
+def configure_avatar(request: Request, model: ConfigureAvatar = Body(...)):
+    avatar = generate_avatar(model.hairId, model.hairColorId, model.skinColorId, model.facialHairId, model.clothingId)
+
+    return initialize_avatar(avatar, request)
 
 @router.get("/{cache_filename}", tags=["api avatar"], status_code=200)
 def get_avatar_from_cache(cache_filename):
@@ -279,43 +361,4 @@ def get_avatar(request: Request):
 
     avatar = generate_avatar()
 
-    avatar_base_filename = calculate_cache_filename(avatar)
-    base_url = str(request.url)
-    if not base_url.endswith("/"):
-        base_url += "/"
-
-    if os.path.exists(f"{cache_folder}{avatar_base_filename}"):
-        return {
-            "default": base_url + calculate_emotion_cache_filename(avatar_base_filename, "default"),
-            # "sad": base_url + calculate_emotion_cache_filename(avatar_base_filename, "sad"),
-            # "happy": base_url + calculate_emotion_cache_filename(avatar_base_filename, "happy"),
-            # "frightened": base_url + calculate_emotion_cache_filename(avatar_base_filename, "frightened"),
-            # "confused": base_url + calculate_emotion_cache_filename(avatar_base_filename, "confused"),
-        }
-
-    default = avatar
-    sad_avatar = avatar.sad()
-    happy_avatar = avatar.happy()
-    frightened_avatar = avatar.frightened()
-    confused_avatar = avatar.confused()
-
-    svg_data_array = [
-        [extract_features(default, "neutral"), default.render()],
-        # [extract_features(sad_avatar, "sad"), sad_avatar.render()],
-        # [extract_features(happy_avatar, "happy"), happy_avatar.render()],
-        # [extract_features(frightened_avatar, "frightened"), frightened_avatar.render()],
-        # [extract_features(confused_avatar, "confused"), confused_avatar.render()],
-    ]
-
-    jpg_byte_data_array = convert_all_svg_to_jpg(svg_data_array)
-    avatar_photo_array = generate_avatar_photos(jpg_byte_data_array)
-    
-    result = {
-        "default": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[0], "default"),
-        # "sad": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[1], "sad"),
-        # "happy": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[2], "happy"),
-        # "frightened": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[3], "frightened"),
-        # "confused": base_url + save_to_cache(avatar_base_filename, avatar_photo_array[4], "confused"),
-    }
-    
-    return result
+    return initialize_avatar(avatar, request)
