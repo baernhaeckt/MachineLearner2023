@@ -4,7 +4,7 @@ from tempfile import NamedTemporaryFile
 
 from fastapi import APIRouter, UploadFile
 
-from app.services.emotion_detection_service import EmotionDetectionService
+from services.emotion_detection_service import EmotionDetectionService
 
 router = APIRouter()
 
