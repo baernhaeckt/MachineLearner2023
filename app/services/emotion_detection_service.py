@@ -9,7 +9,7 @@ class EmotionDetectionService:
     SEGMENT_DURATION_SECS: float = 5
 
     @staticmethod
-    def _extract_features(data, sample_rate):
+    def _extract_features(data: np.array, sample_rate: float) -> np.array:
         result = np.array([])
 
         zcr = librosa.feature.zero_crossing_rate(y=data).T
@@ -40,7 +40,7 @@ class EmotionDetectionService:
 
         return result
 
-    def _predict(self, data, index, segment_length, sample_rate):
+    def _predict(self, data: np.array, index: int, segment_length: int, sample_rate: float) -> pd.DataFrame:
         split_data = data[index * segment_length: (index + 1) * segment_length]
 
         feature_list = list()
