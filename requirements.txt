@@ -8,3 +8,8 @@ scikit-learn
 tensorflow
 matplotlib
 seaborn
+python-avatars
+cairosvg
+pillow
+replicate
+requests
