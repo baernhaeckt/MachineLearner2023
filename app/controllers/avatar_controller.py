@@ -133,6 +133,9 @@ def create_image_mask(input_image_byte_data):
     # Open the original image
     image = Image.open(io.BytesIO(input_image_byte_data)).convert("RGB")
 
+    if not os.path.exists("cache"):
+        os.makedirs("cache")
+
     image.save('cache/prompt_image.jpg', format="JPEG")
 
     # Step 1: Invert the colors
