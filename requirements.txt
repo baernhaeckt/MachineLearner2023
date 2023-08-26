@@ -1,3 +1,10 @@
 fastapi
 uvicorn
 pydantic-settings
+pandas
+librosa
+numba
+scikit-learn
+tensorflow
+matplotlib
+seaborn
